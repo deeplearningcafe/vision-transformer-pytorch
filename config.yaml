@@ -1,0 +1,40 @@
+vit:
+  patch_dim: 16
+  input_channels: 3
+  num_classes: 5
+  hidden_dim: 768
+  num_heads: 12
+  num_layers: 12
+  dropout: 0.1
+  eps: 1e-05
+  ff_dim: 3072
+  dim: 224
+
+train:
+  data: 'data'
+  batch_size: 16
+  scheduler_type: 'warmup-cosine'
+  max_epochs: 25
+  warmup_epochs: 2
+  use_bitsandbytes: True
+  optim: 'adamw'
+  lr: 1e-4
+  device: 'cuda'
+  save_path: 'weights'
+  eval_epoch: 1
+  log_epoch: 1
+  save_epoch: 3
+  log_path: 'logs'
+  early_stopping: 25
+  base_dir: 'E:\Data\mobilenet\images'
+
+inference:
+  checkpoint: 'WEIGHTS-PATH'
+
+overfit_one_batch:
+  tolerance: 1e-6
+  max_steps: 250
+  overfit: False
+  hp_search: False
+  full_train: True
+  logging_steps: 10

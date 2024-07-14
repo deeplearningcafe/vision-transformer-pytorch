@@ -1,6 +1,6 @@
 # U-Net: Convolutional Networks for Biomedical Image Segmentation
 
-This repository contains the implementation of the paper ["U-Net: Convolutional Networks for Biomedical Image Segmentation"](https://arxiv.org/abs/1505.04597) by Olaf Ronneberger, Philipp Fischer, and Thomas Brox. This implementation includes the U-Net model and training scripts for biomedical image segmentation.
+This repository contains the implementation of the paper ["An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"](https://arxiv.org/abs/2010.11929) by Alexey Dosovitskiy et al. This implementation includes the Vision Transformer (ViT) model and training scripts for image classification.
 
 ## Table of Contents
 
@@ -8,20 +8,20 @@ This repository contains the implementation of the paper ["U-Net: Convolutional 
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [Training the Transformer](#training-the-transformer)
+  - [Training the ViT Model](#training-the-vit-model)
 - [Examples](#examples)
 - [References](#references)
 
 ## Overview
 
-The U-Net architecture is designed for biomedical image segmentation. It consists of a contracting path to capture context and a symmetric expanding path that enables precise localization. This makes it particularly effective for tasks where a detailed understanding of the input image is necessary. In the original paper they don't use layer normalization nor batch normalization, but as this techniques make training more stable and helps to achieve convergence faster, we decided to include torch LayerNorm module after each convolution layer. Also for training in the Penn-Fudan Pedestrian we include padding of value 1 to achieve the same dimensions in the input and the output.
+Vision Transformers (ViTs) are a novel approach to image classification that leverages transformer models, which have been highly successful in natural language processing. By treating image patches as sequences of words, ViTs apply a standard transformer directly to sequences of image patches for image classification tasks.
 
 ## Requirements
 
 - Python 3.8 or higher
 - PyTorch 2.3 or higher
 - NumPy
-- scikit-image
+- PIL
 - tqdm
 - matplotlib
 
@@ -42,8 +42,8 @@ To set up the environment, follow these steps:
    ```
    Or if using conda:
    ```bash
-   conda create -n unet_torch
-   conda activate unet_torch
+   conda create -n vit_torch
+   conda activate vit_torch
    ```
 3. Install the required packages:
    ```bash
@@ -52,43 +52,48 @@ To set up the environment, follow these steps:
 
 ## Usage
 ### Dataset
-We use the dataset used in the paper, from EM segmentation challenge in 2015. This dataset has only 30 images, by using the Overlap-tile as in the paper, from each image we can create 4 samples, also we apply data augmentation. For validation we take 10% of the dataset, that is 3 images.
+We load the pretrained weights from google, the model was trained in the ImageNet dataset, there are 2 versions of the pretrained ViT, the one with better performance is the model trained in the Imagenet21K so we use that version. Then for fintuning we created a dataset from safebooru to classify the Evangelion pilots. There are 5 classes and around 750 samples. 
 
-Also we added the option to train with the [Penn-Fudan Pedestrian](https://www.kaggle.com/datasets/sovitrath/penn-fudan-pedestrian-dataset-for-segmentation), this kaggle version has already been splitted into train and validations sets. The labels can contain several objects, each object is given a pixel starting by 1 for the first object, so we loop all the unique values of the mask and treat all the objects as the same label, so in the end we just have two classes, 0 is background and 1 is person class.
+However we couldn't achieve convergence, which was achieved using the CNN model MobileNetv3. Transformers needs a huge amount of training samples to achieve good results, so for small datasets CNN models usually are better options.
 
-### Hyperparameter search
-By overfitting in a single batch, we can check if the model is working well if it can achieve 0 loss. To run it just change the `hp_search` variable to True inside the `config.yaml` file, the tolerance, max steps and search interval can be changed.
+### Overfit one batch
+By overfitting in a single batch, we can check if the model is working well if it can achieve 0 loss. To run it just change the `overfit` variable to True inside the `config.yaml` file, the tolerance, max steps and search interval can be changed.
    ```bash
    python training.py
    ```
-The Unet model using half of the channels, parameter becomes around 7M, achieves a loss of 0.1 when overfitting in one batch.
+When using the pretrained weights, we need to make the learning rate higher, 1e-3, so that the model achieves the 0 loss.
 
-### Training the U-Net Model
+### Training the ViT Model
 To train the Transformer model, use the provided script:
    ```bash
    python training.py
    ```
-Here, `config.yaml` is a configuration file specifying the model parameters, training settings, and dataset paths. Parameter count becomes 31,030,658 while try to use the same configuration as in the paper. In the configuration you can decide if use BatchNorm, the padding and the dataset.
+We provide 3 types of training options. Firstly, full-scratch is training the whole model from the start, this is only recommended if using a huge training dataset of several millions of samples. Secondly, from pretrained is training the whole model but not from a randomly initialized model, the model is trained from the pretrained weights which have a strong feature representation capabilities already learned. Lastly, finetuning is updating only a small portion of the pretrained model to adapt it to the desired task. In our case we update the last ViT block and the MLP Head, this approach is the less computionally expensive.
+
+Here, `config.yaml` is a configuration file specifying the model parameters, training settings, and dataset paths. Parameter count becomes 86M which is the same as the original paper, as we are using the same weights thats means that despite the MLP head, the rest of the parameters have the same shape.
    ```yalm
-unet:
-  input_channels: [64, 128, 256, 512]
-  # input_shape: [570, 282, 138, 66, 30, 54, 102, 198, 390]
-  input_shape: [320, 160, 80, 40, 20]
-  num_classes: 2
-  image_channels: 3
+vit:
+  patch_dim: 16
+  input_channels: 3
+  num_classes: 5
+  hidden_dim: 768
+  num_heads: 12
+  num_layers: 12
   dropout: 0.1
-  use_ln: True
-  padding: 1
+  eps: 1e-05
+  ff_dim: 3072
+  dim: 224
 
 train:
   data: 'data'
-  batch_size: 8
+  batch_size: 20
+  eval_batch_size: 4
   scheduler_type: 'warmup-cosine'
   max_epochs: 50
-  warmup_epochs: 4
+  warmup_epochs: 5
   use_bitsandbytes: True
   optim: 'adamw'
-  lr: 1e-5
+  lr: 1e-3
   device: 'cuda'
   save_path: 'weights'
   eval_epoch: 1
@@ -96,21 +101,20 @@ train:
   save_epoch: 3
   log_path: 'logs'
   early_stopping: 50
-  w_0: 1.1
-  dataset_name: "pedestrian"
+  base_dir: 'Data-Dir'
+  finetuning: True
+  checkpoint: 'Pretrained-Weights'
+  freeze_model: False
+  from_checkpoint: False
    ```
 ## Training Results
-While we tried to use the same settings as in the original paper, we weren't able to achieve convergence using the EM segmentation dataset. Despite including almost the same loss weight as in the paper, that is a sum of class balance and the distance with the nearest cell, around epoch 5 with learning rate of 1e-4 the training loss and the validation loss start to diverge. After several experiments in which we remove the distance loss, we decreased learning rate and change the data augmentation techniques, the results were always the same.
-
-The rotation data augmentation leads too poor results, by taking a look at the training logits it was clear that when the model starts recognizing the rotation, the validation loss tends to raise. So we remove the rotation data augmentation.
-
-For the Penn-Fudan Pedestrian dataset we used the same transformations as in the cells dataset, but in this case the model learned properly, training loss and validation loss were both decreasing.
+The results weren't as expected, the best accuracy we achieved in the validation set was only of 0.55, as there are 5 classes is it better than random, however a much higher value was expected. The dataset quality is low, as there are misclassified samples, but all the characters have unique traits and are not very similar so we would have expected the model to properly learn to classify them. However Vision Transformers are known for requiring a huge amount of training samples and computing resources.
 
 ## Examples
-We include the `test.py` file for showing the predictions and check the gradients and activations.
+We include the `test.py` file for checking the gradients and activations.
 
 ## References
-- Ronneberger, O., Fischer, P., & Brox, T. (2015). U-Net: Convolutional Networks for Biomedical Image Segmentation. arXiv preprint [arXiv:1505.04597.](https://arxiv.org/abs/1505.04597)
+- Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., ... & Houlsby, N. (2020).  [arXiv:2010.11929](https://arxiv.org/abs/2010.11929)
 - PyTorch Documentation: https://pytorch.org/docs/stable/index.html
 
 ## Author

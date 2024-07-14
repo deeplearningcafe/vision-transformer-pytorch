@@ -1,10 +1,7 @@
 weights/
-log_output.csv
-visualization.ipynb
 __pycache__/
 .ipynb_checkpoints/
 outputs
 *.csv
 logs/
-unet.ipynb
-data/PennFudanPed
+vit_tests.ipynb

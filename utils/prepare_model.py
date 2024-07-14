@@ -65,16 +65,80 @@ def create_optim(model: torch.nn.Module, conf:omegaconf.DictConfig):
     
     return optim, scheduler
 
+def get_update_ratio(model, layers:dict[str, torch.tensor], diffs: dict[str, list]):
+    # we have the layers dict that stores the weights and the diffs dict that stores a list with the diff in each step
+    # dict are not in place so we need to create a new one
+    tmp_dict = {}
+    
+    for key, layer in layers.items():
+        for name, param in model.named_parameters():
+            if key in name.split('.'):
+                with torch.no_grad():
+                    param_clone = param.detach().cpu().clone()
+                    change = param_clone-layer
+                    diffs[key].append((change.std()/param.std()).log10().item())
+                    tmp_dict[key] = param_clone
+
+    return tmp_dict, diffs
+
+def freeze_model(model: torch.nn.Module):
+    for name, param in model.named_parameters():
+        param.requires_grad = False 
+    
+    # now only the last block
+    for name, param in model.blocks[-1].named_parameters():
+        print(name)
+        param.requires_grad = True
+    
+    # now only the head
+    for name, param in model.mlp_head.named_parameters():
+        print(name)
+        param.requires_grad = True
+    
+    return model
+    
 def prepare_training(conf: omegaconf.DictConfig):
     model = ViT(conf)
-    
-    apply_weights_init(model, conf)
-    model = model.to(conf.train.device)
     model.train()
+    apply_weights_init(model, conf)
+    
+    if conf.train.finetuning:
+        load_head = True if conf.vit.num_classes == 1000 else False
+        model.from_pretrained(conf.train.checkpoint, load_head)        
+    
+    if conf.train.freeze_model:
+        model = freeze_model(model)
+    model = model.to(conf.train.device)
     
     optim, scheduler = create_optim(model, conf)
     
     loss_fn = nn.CrossEntropyLoss()
     
+    if conf.train.from_checkpoint:
+        model, optim, scheduler = training_from_checkpoint(conf, model, optim, scheduler)
+    
     return model, optim, scheduler, loss_fn
+    
+def training_from_checkpoint(conf: omegaconf.DictConfig, 
+                             model: nn.Module,
+                             optim: torch.optim.Optimizer,
+                             scheduler: torch.optim.lr_scheduler.LRScheduler,
+                            ):
+    checkpoint = torch.load(conf.inference.checkpoint)
+
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optim.load_state_dict(checkpoint['optimizer_state_dict'])
+    scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+    return model, optim, scheduler
+
+def prepare_model(conf: omegaconf.DictConfig):
+    model = ViT(conf)
+    
+    checkpoint = torch.load(r''.join(conf.inference.checkpoint),
+                         map_location={'cuda:0': 'cpu'})
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(conf.train.device)
+    model.eval()
+    return model
     

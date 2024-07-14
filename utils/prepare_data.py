@@ -10,13 +10,29 @@ import numpy as np
 from torch.utils.data import default_collate
 import glob
 import omegaconf
-
+from tqdm import tqdm
 
 class ImageDataset(Dataset):
-    def __init__(self, img_list:list[str], labels_dict: dict[str, int]):
+    def __init__(self, img_list:list[str], labels_dict: dict[str, int], cache_imgs: bool=False):
         # as the names are in order we can just use listdir
         self.img_list = img_list
         self.labels_dict = labels_dict
+        self.chache_imgs = cache_imgs
+        if self.chache_imgs:
+            self.imgs = []
+            self.labels = []
+            print("Making chache of imgs")
+            for i in tqdm(range(len(self.img_list))):
+                img_path = self.img_list[i]
+        
+                img = ImageDataset.load_image(img_path, True)
+                label = os.path.basename(os.path.dirname(img_path))
+                
+                label = self.labels_dict[label]
+                self.imgs.append(img)
+                self.labels.append(label)
+
+                
         
     @staticmethod
     def load_image(img_path:str, resize:bool=False):
@@ -31,12 +47,17 @@ class ImageDataset(Dataset):
         return len(self.img_list)
     
     def __getitem__(self, idx):
-        img_path = self.img_list[idx]
+        if not self.chache_imgs:
+            img_path = self.img_list[idx]
+            
+            img = ImageDataset.load_image(img_path, True)
+            label = os.path.basename(os.path.dirname(img_path))
+            
+            label = self.labels_dict[label]
         
-        img = ImageDataset.load_image(img_path, True)
-        label = os.path.basename(os.path.dirname(img_path))
-        
-        label = self.labels_dict[label]
+        else:
+            img = self.imgs[idx]
+            label = self.labels[idx]
         
         return img, label
     
@@ -65,7 +86,7 @@ class ImageTransform:
                 image = v2.functional.horizontal_flip(image)
 
             # ElasticTransform
-            displacement = v2.ElasticTransform(alpha=40.0)._get_params(image)['displacement']
+            displacement = v2.ElasticTransform(alpha=60.0)._get_params(image)['displacement']
             image = v2.functional.elastic(image, displacement)
             
             # adjust brightness and contrast
@@ -157,7 +178,7 @@ def collate_fn(
 
     return batch
 
-def create_dataset(conf: omegaconf.DictConfig):
+def create_dataset(conf: omegaconf.DictConfig, cache_imgs: bool=True):
     base_dir = r"".join(conf.train.base_dir)
     train_list, val_list = split_train_val(base_dir)
     
@@ -168,11 +189,29 @@ def create_dataset(conf: omegaconf.DictConfig):
     pilots_labels = {"ayanami_rei": 0, "ikari_shinji": 1, "makinami_mari_illustrious": 2,
                 "nagisa_kaworu": 3, "souryuu_asuka_langley": 4}
 
-    train_data = ImageDataset(train_list, pilots_labels)
-    val_data = ImageDataset(val_list, pilots_labels)
+    train_data = ImageDataset(train_list, pilots_labels, cache_imgs=cache_imgs)
+    val_data = ImageDataset(val_list, pilots_labels, cache_imgs=cache_imgs)
     transforms = ImageTransform(mean_img = mean, std_img = std)
     
     train_loader = DataLoader(train_data, batch_size=conf.train.batch_size, collate_fn=lambda batch: collate_fn(batch, conf.train.device, transforms, "train"), shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=conf.train.batch_size, collate_fn=lambda batch: collate_fn(batch, conf.train.device, transforms, "val"), shuffle=False)
+    val_loader = DataLoader(val_data, batch_size=conf.train.eval_batch_size, collate_fn=lambda batch: collate_fn(batch, conf.train.device, transforms, "val"), shuffle=False)
 
     return train_loader, val_loader
+
+def prepare_test(conf: omegaconf.DictConfig):
+    base_dir = r"".join(conf.train.base_dir)
+    train_list, val_list = split_train_val(base_dir)
+    
+        # with this we get the images between -1 and 1
+    mean = (0.5, 0.5, 0.5)
+    std = (0.5, 0.5, 0.5)
+
+    pilots_labels = {"ayanami_rei": 0, "ikari_shinji": 1, "makinami_mari_illustrious": 2,
+                "nagisa_kaworu": 3, "souryuu_asuka_langley": 4}
+
+    val_data = ImageDataset(val_list, pilots_labels, cache_imgs=False)
+    transforms = ImageTransform(mean_img = mean, std_img = std)
+    
+    val_loader = DataLoader(val_data, batch_size=16, collate_fn=lambda batch: collate_fn(batch, conf.train.device, transforms, "val"), shuffle=False)
+
+    return val_loader

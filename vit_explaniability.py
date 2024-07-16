@@ -4,11 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def show_mask_on_image(img, mask):
-    # img = np.float32(img) / 255
     heatmap = plt.cm.jet(mask)[:, :, :3]  # Using matplotlib's colormap for heatmap
     cam = 1.0 * heatmap +  0.5 * np.float32(img)
     cam = cam / np.max(cam)
-    # return np.uint8(255 * cam)
     return cam
 
 
@@ -54,17 +52,6 @@ def grad_rollout(attentions, gradients):
             attention_heads_fused = (attentions*weights).mean(axis=1)
             attention_heads_fused[attention_heads_fused < 0] = 0.0
 
-
-            # Drop the lowest attentions
-            # flat = attention_heads_fused.view(attention_heads_fused.size(0), -1)
-            # # flat_neg = -1.0*flat.clone()
-            # _, indices = flat.topk(int(flat.size(-1)*discard_ratio), -1, False)
-
-            # #indices = indices[indices != 0]
-            # print(flat[0, indices].shape)
-            # flat[0, indices] = 0.0
-            # print(attention_heads_fused[0, 0, 1:])
-            
             I = torch.eye(attention_heads_fused.size(-1))
             a = (attention_heads_fused + 1.0*I)/2
             a = a / a.sum(dim=-1, keepdim=True)

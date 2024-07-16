@@ -18,6 +18,8 @@ class ImageDataset(Dataset):
         self.img_list = img_list
         self.labels_dict = labels_dict
         self.chache_imgs = cache_imgs
+        # this makes training speed much higher as reading images every batch takes time and doesn't use 100% of the GPU
+        # around 800 imgs at 224x224 resolution takes around 3GB of RAM
         if self.chache_imgs:
             self.imgs = []
             self.labels = []
@@ -68,12 +70,7 @@ class ImageTransform:
         # self.size = size
         
     def transform(self, image, phase:str="train"):
-        if phase=="train":
-            # Random crop resize
-            # top = random.randint(0, image.shape[-2]-self.size)
-            # left = random.randint(0, image.shape[-2]-self.size)
-            # image = v2.functional.resized_crop(image, top, left, self.size)
-            
+        if phase=="train":            
             # Random afine
             # rotation makes the validations loss diverge so set to 0
             degrees = 0
@@ -94,15 +91,11 @@ class ImageTransform:
             contrast = random.uniform(0.92, 1.12)
             image = v2.functional.adjust_brightness(image, brightness)
             image = v2.functional.adjust_contrast(image, contrast)
-        # else:
-        #     image = v2.functional.resize(image, self.size)
             
         # result of all the dataset
         image = v2.Normalize(mean=self.mean_img, std=self.std_img)(image)
-
-        
+     
         return image
-
         
     def __call__(self, img, phase:str="train"):
         return self.transform(img, phase)

@@ -33,7 +33,7 @@ def debug_inference(model, batch: torch.tensor):
 
 @hydra.main(version_base=None, config_path=".", config_name="config")
 def main(conf:omegaconf.DictConfig):
-    utils.visualization.plot_logs(r"logs\log_output_20240712-202633.csv")
+    utils.visualization.plot_logs(r"LOGS-PATH")
     conf.train.device = "cpu"
     model = prepare_model(conf)
     # model, optim, scheduler, loss_fn = prepare_training(conf)

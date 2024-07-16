@@ -1,4 +1,4 @@
-# U-Net: Convolutional Networks for Biomedical Image Segmentation
+# Vision Transformer Pytorch
 
 This repository contains the implementation of the paper ["An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale"](https://arxiv.org/abs/2010.11929) by Alexey Dosovitskiy et al. This implementation includes the Vision Transformer (ViT) model and training scripts for image classification.
 
@@ -116,6 +116,7 @@ We include the `test.py` file for checking the gradients and activations.
 ## References
 - Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., ... & Houlsby, N. (2020).  [arXiv:2010.11929](https://arxiv.org/abs/2010.11929)
 - PyTorch Documentation: https://pytorch.org/docs/stable/index.html
+- Credits for [Explainability for Vision Transformers](https://github.com/jacobgil/vit-explain) for the attention rollout implementation.
 
 ## Author
 [aipracticecafe](https://github.com/deeplearningcafe)

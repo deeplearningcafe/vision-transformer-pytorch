@@ -222,15 +222,3 @@ class ViT(nn.Module):
         self.load_state_dict(target_model_state_dict)
 
 
-
-
-if __name__ == "__main__":
-    from torchinfo import summary
-    path = "config.yaml"
-    conf = omegaconf.OmegaConf.load(path)
-    model = ViT(conf)
-    
-    input = torch.randn((4, 3, 224, 224))
-    out = model(input)
-    print(out.shape)
-    # print(summary(model, input_size=(32, 3, 224, 224), depth=5))
